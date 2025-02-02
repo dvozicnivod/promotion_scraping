@@ -63,15 +63,20 @@ def scrape_website(url):
 def is_new_post(post):
     now = datetime.now(pytz.timezone("Europe/Belgrade"))
     post_time = post.date.astimezone(pytz.timezone("Europe/Belgrade"))  # Convert to your tz
-    return post_time > (now - timedelta(days=1))
+    return post_time > (now - timedelta(days=7))
 
 def scrape_instagram(username, password, target_account):
     loader = instaloader.Instaloader()
-    
-    # Session management
     session_file = f"session_{username}"
+    
     try:
-        loader.load_session_from_file(username, session_file)
+        # Validate existing session
+        if os.path.exists(session_file):
+            loader.load_session_from_file(username, session_file)
+            test_profile = instaloader.Profile.from_username(loader.context, username)
+            test_profile.userid  # Will throw error if session invalid
+        else:
+            raise FileNotFoundError
     except (FileNotFoundError, instaloader.exceptions.ConnectionException):
         loader.login(username, password)
         loader.save_session_to_file(session_file)
@@ -81,7 +86,7 @@ def scrape_instagram(username, password, target_account):
     
     promotions = []
     for post in posts:
-        if is_new_post(post) and 'promotion' in post.caption.lower():
+        if is_new_post(post):
             promotions.append(post.caption)
         # Stop checking older posts
         if not is_new_post(post):
@@ -99,13 +104,15 @@ def send_email(subject, body, to_email, from_email, smtp_server, smtp_port, smtp
     msg['To'] = to_email
     msg['Subject'] = subject
     msg.attach(MIMEText(body, 'plain'))
-    server = smtplib.SMTP(smtp_server, smtp_port)
-    server.starttls()
-    server.login(smtp_user, smtp_password)
-    text = msg.as_string()
-    server.sendmail(from_email, to_email, text)
-    server.quit()
-
+    
+    try:
+        with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
+            server.login(smtp_user, smtp_password)
+            server.sendmail(from_email, to_email, msg.as_string())
+    except Exception as e:
+        logging.error(f"Email sending failed: {e}")
+        raise
+    
 def load_last_promotions():
     try:
         with open('last_promotions.json', 'r') as f:
@@ -120,8 +127,9 @@ def save_promotions(promotions):
 def read_counter():
     try:
         with open('counter.txt', 'r') as f:
-            return int(f.read())
-    except FileNotFoundError:
+            content = f.read().strip()
+            return int(content) if content else 0
+    except (FileNotFoundError, ValueError):
         return 0
 
 def write_counter(value):
@@ -132,7 +140,6 @@ def main():
     # Load previous promotions
     last_promotions = load_last_promotions()
     try:
-        website_url = 'https://jysk.rs/'
         insta_username = ig_user
         insta_password = ig_password
         insta_target_account = 'jyskrs'
@@ -147,23 +154,16 @@ def main():
          # Load previous promotions
         last_promotions = load_last_promotions()
 
-        # Scrape new promotions
-        website_promotions = scrape_website(website_url)
-        logging.info(f'Website promotions: {website_promotions}')
-
         # Scrape Instagram
         instagram_promotions = scrape_instagram(insta_username, insta_password, insta_target_account)
         logging.info(f'Instagram promotions: {instagram_promotions}')
-
-        # Combine all new promotions
-        all_new_promotions = website_promotions + instagram_promotions
         
         # Find actually new promotions
-        new_promotions = [p for p in all_new_promotions if p not in last_promotions]
+        new_promotions = [p for p in instagram_promotions if p not in last_promotions]
         
         # Update stored promotions
         if new_promotions:
-            save_promotions(all_new_promotions)
+            save_promotions(instagram_promotions)
             email_body = '\n'.join(new_promotions)
             send_email(email_subject, email_body, email_to, email_from, smtp_server, smtp_port, smtp_user, smtp_password)
             logging.info('Email sent with new promotions')
@@ -178,7 +178,16 @@ def main():
             no_promotion_days += 1
         
         if no_promotion_days >= 7:
-            send_email("Weekly Summary", "No promotions found this week", ...)
+            send_email(
+                "Weekly Summary", 
+                "No promotions found this week",
+                email_to,
+                email_from,
+                smtp_server,
+                smtp_port,
+                smtp_user,
+                smtp_password
+            )
             no_promotion_days = 0
         
         write_counter(no_promotion_days)
