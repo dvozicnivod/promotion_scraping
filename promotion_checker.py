@@ -5,9 +5,18 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import logging
+import os
+from dotenv import load_dotenv
 
 # Configure logging
 logging.basicConfig(filename='logs.txt', level=logging.INFO, format='%(asctime)s - %(message)s')
+
+# Load .env file locally
+load_dotenv()
+email_user = os.getenv('EMAIL_USER')
+email_password = os.getenv('EMAIL_PASSWORD')
+ig_user = os.getenv('INSTAGRAM_USER')
+ig_password = os.getenv('INSTAGRAM_PASSWORD')
 
 # Function to scrape websites
 def scrape_website(url):
@@ -49,17 +58,17 @@ def send_email(subject, body, to_email, from_email, smtp_server, smtp_port, smtp
 
 # Main function
 def main():
-    website_url = 'https://example.com'
-    insta_username = 'your_instagram_username'
-    insta_password = 'your_instagram_password'
-    insta_target_account = 'target_account'
+    website_url = 'https://yisk.rs'
+    insta_username = ig_user
+    insta_password = ig_password
+    insta_target_account = 'jyskrs'
     email_subject = 'New Promotions Detected'
     email_to = 'recipient@example.com'
-    email_from = 'sender@example.com'
-    smtp_server = 'smtp.example.com'
+    email_from = email_user
+    smtp_server = 'smtp.mail.yahoo.com'
     smtp_port = 587
-    smtp_user = 'smtp_user'
-    smtp_password = 'smtp_password'
+    smtp_user = email_user
+    smtp_password = email_password
 
     # Scrape website
     website_promotions = scrape_website(website_url)
