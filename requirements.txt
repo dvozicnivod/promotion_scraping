@@ -1,6 +1,7 @@
 requests
-beautifulsoup4
+bs4
 instaloader
 python-dotenv
 pytz
 tenacity
+bs4
