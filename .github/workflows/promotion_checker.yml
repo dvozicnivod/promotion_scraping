@@ -17,11 +17,22 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Restore Session
+        if: ${{ github.event_name != 'schedule' }}
+        run: |
+          if [ -f instagram_session ]; then
+            echo "Using existing session"
+          else
+            echo "Downloading session artifact..."
+            gh run download -n instagram-session
+            tar -xzf session.tar.gz || true
+          fi
+
       - name: Cache Instagram Session
         uses: actions/cache@v4
         with:
           path: instagram_session
-          key: ig-session-${{ hashFiles('promotion_checker.py') }}
+          key: ig-session-v1  # Static key instead of file hash
 
       - name: Set Up Python
         uses: actions/setup-python@v4
