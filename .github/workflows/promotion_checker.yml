@@ -45,3 +45,13 @@ jobs:
             last_promotions.json
             logs.txt
           if-no-files-found: ignore
+      - name: Cache session and data
+        uses: actions/cache@v4
+        with:
+          path: |
+            session_*
+            last_promotions.json
+            counter.txt
+            last_check.txt
+          key: data-${{ hashFiles('promotion_checker.py') }}
+          restore-keys: data-
