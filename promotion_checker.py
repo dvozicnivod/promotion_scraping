@@ -179,14 +179,10 @@ def main():
 
          # Load previous promotions
         last_promotions = load_last_promotions()
-
-        # Detect CI environment
-        in_ci = os.getenv('GITHUB_ACTIONS') == 'true'
         
         # Scrape Instagram (without login in CI)
         instagram_promotions = scrape_instagram_profiles(
-            insta_target_accounts,
-            use_login=not in_ci  # Disable login in CI
+            insta_target_accounts
         )
         logging.info(f'Instagram promotions: {instagram_promotions}')
         
