@@ -30,7 +30,8 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install instaloader==4.9.2  # Specific version for stability
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Run Script
         run: python promotion_checker.py
