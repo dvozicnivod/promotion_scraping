@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 import sys
 import json
 from tenacity import retry, stop_after_attempt, wait_exponential
+from time import sleep
 
 # Configure logging
 logging.basicConfig(filename='logs.txt', level=logging.INFO, format='%(asctime)s - %(message)s')
@@ -26,8 +27,9 @@ ig_password = os.getenv('INSTAGRAM_PASSWORD')
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1))
 def scrape_website(url):
     try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()  # Raise HTTP errors
+        response = requests.get(url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
+        response.raise_for_status()
+        sleep(2)  # Add delay between requests
         soup = BeautifulSoup(response.content, 'html.parser')
         # Find the promotion link using "JYSK/rs/CampaignPaper" string
         promotion_link = None
@@ -114,7 +116,7 @@ def main():
     # Load previous promotions
     last_promotions = load_last_promotions()
     try:
-        website_url = 'https://yisk.rs'
+        website_url = 'https://jysk.rs/'
         insta_username = ig_user
         insta_password = ig_password
         insta_target_account = 'jyskrs'
