@@ -29,58 +29,62 @@ def scrape_website(url):
     try:
         response = requests.get(url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
         response.raise_for_status()
-        sleep(2)  # Add delay between requests
         soup = BeautifulSoup(response.content, 'html.parser')
-        # Find the promotion link using "JYSK/rs/CampaignPaper" string
-        promotion_link = None
+        
+        # Find campaign paper link
+        campaign_link = None
         for link in soup.find_all('a', href=True):
             if "JYSK/rs/CampaignPaper" in link['href']:
-                promotion_link = link['href']
+                campaign_link = link['href']
                 break
-        if promotion_link:
-            promotion_response = requests.get(promotion_link, timeout=10)
-            promotion_response.raise_for_status()
-            promotion_soup = BeautifulSoup(promotion_response.content, 'html.parser')
-            # Extract relevant data from promotion page (customize as needed)
-            promotions = promotion_soup.find_all('div', class_='promotion')
-            return [promo.text for promo in promotions]
-        return []
-    except requests.ConnectionError as e:
-        logging.error(f"Connection error while scraping website: {e}")
-        raise
-    except requests.Timeout as e:
-        logging.error(f"Timeout error while scraping website: {e}")
-        raise
+        
+        if not campaign_link:
+            logging.warning("No campaign link found")
+            return []
+        
+        # Scrape campaign page
+        campaign_response = requests.get(campaign_link, timeout=10)
+        campaign_response.raise_for_status()
+        campaign_soup = BeautifulSoup(campaign_response.content, 'html.parser')
+        
+        # Extract promotions - adjust selector based on actual page structure
+        promotions = []
+        for item in campaign_soup.select('.product-item'):  # Update this selector
+            title = item.select_one('.product-title')
+            if title:
+                promotions.append(title.text.strip())
+        
+        return promotions
+
     except requests.RequestException as e:
-        logging.error(f"Error while scraping website: {e}")
+        logging.error(f"Request error: {e}")
         raise
 
 def is_new_post(post):
     now = datetime.now(pytz.timezone("Europe/Belgrade"))  # Your timezone
     return post.date > (now - timedelta(days=1))
 
-# Function to scrape Instagram
 def scrape_instagram(username, password, target_account):
     loader = instaloader.Instaloader()
-    loader.login(username, password)
+    
+    # Try loading session
+    try:
+        loader.load_session_from_file(username)
+    except FileNotFoundError:
+        loader.login(username, password)
+        loader.save_session_to_file()
     profile = instaloader.Profile.from_username(loader.context, target_account)
     
-    try:
-        with open('last_check.txt', 'r') as f:
-            last_check = datetime.fromisoformat(f.read())
-    except FileNotFoundError:
-        last_check = datetime.now() - timedelta(days=7)  # Default to 1 week
-
-    posts = profile.get_posts(since=last_check)
+    posts = profile.get_posts()  # Remove 'since' parameter
     
-    # Save current time as last check
-    with open('last_check.txt', 'w') as f:
-        f.write(datetime.now().isoformat())
-
     promotions = []
     for post in posts:
+        # Keep date filtering in the loop
         if 'promotion' in post.caption.lower() and is_new_post(post):
             promotions.append(post.caption)
+            # Break loop if we reach posts older than 1 day
+            if not is_new_post(post):
+                break
     return promotions
 
 # Function to compare results
@@ -112,6 +116,17 @@ def save_promotions(promotions):
     with open('last_promotions.json', 'w') as f:
         json.dump(promotions, f)
 
+def read_counter():
+    try:
+        with open('counter.txt', 'r') as f:
+            return int(f.read())
+    except FileNotFoundError:
+        return 0
+
+def write_counter(value):
+    with open('counter.txt', 'w') as f:
+        f.write(str(value))
+
 def main():
     # Load previous promotions
     last_promotions = load_last_promotions()
@@ -139,35 +154,33 @@ def main():
         instagram_promotions = scrape_instagram(insta_username, insta_password, insta_target_account)
         logging.info(f'Instagram promotions: {instagram_promotions}')
 
+        # Combine all new promotions
         all_new_promotions = website_promotions + instagram_promotions
-
-        # Compare with last run
+        
+        # Find actually new promotions
         new_promotions = [p for p in all_new_promotions if p not in last_promotions]
         
-        # Compare results
-        new_promotions = compare_results(website_promotions, instagram_promotions)
-        logging.info(f'New promotions: {new_promotions}')
-
-        # Send email if new promotions are found
+        # Update stored promotions
         if new_promotions:
+            save_promotions(all_new_promotions)
             email_body = '\n'.join(new_promotions)
             send_email(email_subject, email_body, email_to, email_from, smtp_server, smtp_port, smtp_user, smtp_password)
             logging.info('Email sent with new promotions')
-            save_promotions(all_new_promotions)
 
-        # Inside main()
-        global no_promotion_days  # Or store in a file
-
+        # Weekly email logic
+        no_promotion_days = read_counter()
+        
         if new_promotions:
-            # Reset counter
             no_promotion_days = 0
+            # Send email with new promotions
         else:
             no_promotion_days += 1
-
-        # Weekly debug email (add separate workflow for this)
+        
         if no_promotion_days >= 7:
-            send_email("Weekly Summary", "No promotions found this week.", ...)
+            send_email("Weekly Summary", "No promotions found this week", ...)
             no_promotion_days = 0
+        
+        write_counter(no_promotion_days)
 
     except Exception as e:
         print(f"Error: {e}")
