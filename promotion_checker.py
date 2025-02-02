@@ -67,27 +67,27 @@ def is_new_post(post):
     return post_time > (now - timedelta(days=7))
 
 # Instagram scraping function
-def scrape_instagram_profiles(target_accounts, use_login=True):
-    """Scrape Instagram posts from public accounts without login"""
+def scrape_instagram_profiles(target_accounts):
     loader = instaloader.Instaloader()
-    all_promotions = []
+    session_file = "instagram_session"
     
-    if use_login:
-        # Local execution with login
-        session_file = f"session_{os.getenv('INSTAGRAM_USER', 'default')}"
-        try:
-            if os.path.exists(session_file):
-                loader.load_session_from_file(os.getenv('INSTAGRAM_USER'), session_file)
-            else:
-                loader.login(os.getenv('INSTAGRAM_USER'), os.getenv('INSTAGRAM_PASSWORD'))
-                loader.save_session_to_file(session_file)
-        except Exception as e:
-            logging.warning(f"Instagram login failed: {e}. Continuing without login...")
-            use_login = False
+    # Try loading existing session
+    try:
+        if os.path.exists(session_file):
+            loader.load_session_from_file(os.getenv('INSTAGRAM_USER'), session_file)
+            logging.info("Loaded existing Instagram session")
+        else:
+            raise FileNotFoundError
+    except Exception as e:
+        logging.warning(f"Session load failed: {e}. Attempting login...")
+        loader.login(os.getenv('INSTAGRAM_USER'), os.getenv('INSTAGRAM_PASSWORD'))
+        loader.save_session_to_file(session_file)
+        logging.info("Created new Instagram session")
+        sleep(10)  # Critical: Add delay after login
 
+    all_promotions = []
     for account in target_accounts:
         try:
-            # Public profile access
             profile = instaloader.Profile.from_username(loader.context, account)
             posts = profile.get_posts()
             
@@ -100,14 +100,18 @@ def scrape_instagram_profiles(target_accounts, use_login=True):
                         'caption': post.caption,
                         'url': post_url
                     })
+                    sleep(5)  # Add delay between posts
+                
                 if not is_new_post(post):
                     break
-            
+                
             all_promotions.extend(account_promotions)
             logging.info(f"Scraped {len(account_promotions)} promotions from {account}")
+            sleep(15)  # Add delay between accounts
             
         except Exception as e:
             logging.error(f"Error scraping {account}: {e}")
+            sleep(60)  # Backoff on errors
             continue
     
     return all_promotions
