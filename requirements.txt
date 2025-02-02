@@ -3,3 +3,4 @@ beautifulsoup4
 instaloader
 python-dotenv
 pytz
+tenacity
