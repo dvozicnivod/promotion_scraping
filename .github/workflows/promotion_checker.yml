@@ -36,3 +36,12 @@ jobs:
         with:
           name: logs
           path: logs.txt
+    
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: data
+          path: |
+            last_promotions.json
+            logs.txt
+          if-no-files-found: ignore
