@@ -61,8 +61,9 @@ def scrape_website(url):
         raise
 
 def is_new_post(post):
-    now = datetime.now(pytz.timezone("Europe/Belgrade"))  # Your timezone
-    return post.date > (now - timedelta(days=1))
+    now = datetime.now(pytz.timezone("Europe/Belgrade"))
+    post_time = post.date.astimezone(pytz.timezone("Europe/Belgrade"))  # Convert to your tz
+    return post_time > (now - timedelta(days=1))
 
 def scrape_instagram(username, password, target_account):
     loader = instaloader.Instaloader()
