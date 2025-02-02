@@ -67,24 +67,24 @@ def is_new_post(post):
 def scrape_instagram(username, password, target_account):
     loader = instaloader.Instaloader()
     
-    # Try loading session
+    # Session management
+    session_file = f"session_{username}"
     try:
-        loader.load_session_from_file(username)
-    except FileNotFoundError:
+        loader.load_session_from_file(username, session_file)
+    except (FileNotFoundError, instaloader.exceptions.ConnectionException):
         loader.login(username, password)
-        loader.save_session_to_file()
-    profile = instaloader.Profile.from_username(loader.context, target_account)
+        loader.save_session_to_file(session_file)
     
-    posts = profile.get_posts()  # Remove 'since' parameter
+    profile = instaloader.Profile.from_username(loader.context, target_account)
+    posts = profile.get_posts()  # Removed 'since' parameter
     
     promotions = []
     for post in posts:
-        # Keep date filtering in the loop
-        if 'promotion' in post.caption.lower() and is_new_post(post):
+        if is_new_post(post) and 'promotion' in post.caption.lower():
             promotions.append(post.caption)
-            # Break loop if we reach posts older than 1 day
-            if not is_new_post(post):
-                break
+        # Stop checking older posts
+        if not is_new_post(post):
+            break
     return promotions
 
 # Function to compare results
