@@ -67,24 +67,27 @@ def is_new_post(post):
     return post_time > (now - timedelta(days=7))
 
 # Instagram scraping function
-def scrape_instagram_profiles(username, password, target_accounts):
+def scrape_instagram_profiles(target_accounts, use_login=True):
+    """Scrape Instagram posts from public accounts without login"""
     loader = instaloader.Instaloader()
-    session_file = f"session_{username}"
-    
-    try:
-        if os.path.exists(session_file):
-            loader.load_session_from_file(username, session_file)
-            test_profile = instaloader.Profile.from_username(loader.context, username)
-            test_profile.userid
-        else:
-            raise FileNotFoundError
-    except (FileNotFoundError, instaloader.exceptions.ConnectionException):
-        loader.login(username, password)
-        loader.save_session_to_file(session_file)
-    
     all_promotions = []
+    
+    if use_login:
+        # Local execution with login
+        session_file = f"session_{os.getenv('INSTAGRAM_USER', 'default')}"
+        try:
+            if os.path.exists(session_file):
+                loader.load_session_from_file(os.getenv('INSTAGRAM_USER'), session_file)
+            else:
+                loader.login(os.getenv('INSTAGRAM_USER'), os.getenv('INSTAGRAM_PASSWORD'))
+                loader.save_session_to_file(session_file)
+        except Exception as e:
+            logging.warning(f"Instagram login failed: {e}. Continuing without login...")
+            use_login = False
+
     for account in target_accounts:
         try:
+            # Public profile access
             profile = instaloader.Profile.from_username(loader.context, account)
             posts = profile.get_posts()
             
@@ -173,11 +176,13 @@ def main():
          # Load previous promotions
         last_promotions = load_last_promotions()
 
-        # Instagram scraping call
+        # Detect CI environment
+        in_ci = os.getenv('GITHUB_ACTIONS') == 'true'
+        
+        # Scrape Instagram (without login in CI)
         instagram_promotions = scrape_instagram_profiles(
-            insta_username, 
-            insta_password, 
-            insta_target_accounts
+            insta_target_accounts,
+            use_login=not in_ci  # Disable login in CI
         )
         logging.info(f'Instagram promotions: {instagram_promotions}')
         
