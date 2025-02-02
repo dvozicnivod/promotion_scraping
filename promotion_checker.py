@@ -25,23 +25,33 @@ ig_password = os.getenv('INSTAGRAM_PASSWORD')
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1))
 def scrape_website(url):
-    response = requests.get(url, timeout=10)
-    response.raise_for_status()  # Raise HTTP errors
-    soup = BeautifulSoup(response.content, 'html.parser')
-    # Find the promotion link using "JYSK/rs/CampaignPaper" string
-    promotion_link = None
-    for link in soup.find_all('a', href=True):
-        if "JYSK/rs/CampaignPaper" in link['href']:
-            promotion_link = link['href']
-            break
-    if promotion_link:
-        promotion_response = requests.get(promotion_link, timeout=10)
-        promotion_response.raise_for_status()
-        promotion_soup = BeautifulSoup(promotion_response.content, 'html.parser')
-        # Extract relevant data from promotion page (customize as needed)
-        promotions = promotion_soup.find_all('div', class_='promotion')
-        return [promo.text for promo in promotions]
-    return []
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()  # Raise HTTP errors
+        soup = BeautifulSoup(response.content, 'html.parser')
+        # Find the promotion link using "JYSK/rs/CampaignPaper" string
+        promotion_link = None
+        for link in soup.find_all('a', href=True):
+            if "JYSK/rs/CampaignPaper" in link['href']:
+                promotion_link = link['href']
+                break
+        if promotion_link:
+            promotion_response = requests.get(promotion_link, timeout=10)
+            promotion_response.raise_for_status()
+            promotion_soup = BeautifulSoup(promotion_response.content, 'html.parser')
+            # Extract relevant data from promotion page (customize as needed)
+            promotions = promotion_soup.find_all('div', class_='promotion')
+            return [promo.text for promo in promotions]
+        return []
+    except requests.ConnectionError as e:
+        logging.error(f"Connection error while scraping website: {e}")
+        raise
+    except requests.Timeout as e:
+        logging.error(f"Timeout error while scraping website: {e}")
+        raise
+    except requests.RequestException as e:
+        logging.error(f"Error while scraping website: {e}")
+        raise
 
 def is_new_post(post):
     now = datetime.now(pytz.timezone("Europe/Belgrade"))  # Your timezone
