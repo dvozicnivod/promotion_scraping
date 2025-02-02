@@ -7,6 +7,9 @@ from email.mime.multipart import MIMEMultipart
 import logging
 import os
 from dotenv import load_dotenv
+import pytz
+from datetime import datetime, timedelta
+import sys
 
 # Configure logging
 logging.basicConfig(filename='logs.txt', level=logging.INFO, format='%(asctime)s - %(message)s')
@@ -26,6 +29,10 @@ def scrape_website(url):
     promotions = soup.find_all('div', class_='promotion')
     return [promo.text for promo in promotions]
 
+def is_new_post(post):
+    now = datetime.now(pytz.timezone("Europe/Belgrade"))  # Your timezone
+    return post.date > (now - timedelta(days=1))
+
 # Function to scrape Instagram
 def scrape_instagram(username, password, target_account):
     loader = instaloader.Instaloader()
@@ -34,7 +41,7 @@ def scrape_instagram(username, password, target_account):
     posts = profile.get_posts()
     promotions = []
     for post in posts:
-        if 'promotion' in post.caption.lower():
+        if 'promotion' in post.caption.lower() and is_new_post(post):
             promotions.append(post.caption)
     return promotions
 
@@ -58,35 +65,39 @@ def send_email(subject, body, to_email, from_email, smtp_server, smtp_port, smtp
 
 # Main function
 def main():
-    website_url = 'https://yisk.rs'
-    insta_username = ig_user
-    insta_password = ig_password
-    insta_target_account = 'jyskrs'
-    email_subject = 'New Promotions Detected'
-    email_to = 'recipient@example.com'
-    email_from = email_user
-    smtp_server = 'smtp.mail.yahoo.com'
-    smtp_port = 587
-    smtp_user = email_user
-    smtp_password = email_password
+    try:
+        website_url = 'https://yisk.rs'
+        insta_username = ig_user
+        insta_password = ig_password
+        insta_target_account = 'jyskrs'
+        email_subject = 'New Promotions Detected'
+        email_to = 'recipient@example.com'
+        email_from = email_user
+        smtp_server = 'smtp.mail.yahoo.com'
+        smtp_port = 587
+        smtp_user = email_user
+        smtp_password = email_password
 
-    # Scrape website
-    website_promotions = scrape_website(website_url)
-    logging.info(f'Website promotions: {website_promotions}')
+        # Scrape website
+        website_promotions = scrape_website(website_url)
+        logging.info(f'Website promotions: {website_promotions}')
 
-    # Scrape Instagram
-    instagram_promotions = scrape_instagram(insta_username, insta_password, insta_target_account)
-    logging.info(f'Instagram promotions: {instagram_promotions}')
+        # Scrape Instagram
+        instagram_promotions = scrape_instagram(insta_username, insta_password, insta_target_account)
+        logging.info(f'Instagram promotions: {instagram_promotions}')
 
-    # Compare results
-    new_promotions = compare_results(website_promotions, instagram_promotions)
-    logging.info(f'New promotions: {new_promotions}')
+        # Compare results
+        new_promotions = compare_results(website_promotions, instagram_promotions)
+        logging.info(f'New promotions: {new_promotions}')
 
-    # Send email if new promotions are found
-    if new_promotions:
-        email_body = '\n'.join(new_promotions)
-        send_email(email_subject, email_body, email_to, email_from, smtp_server, smtp_port, smtp_user, smtp_password)
-        logging.info('Email sent with new promotions')
+        # Send email if new promotions are found
+        if new_promotions:
+            email_body = '\n'.join(new_promotions)
+            send_email(email_subject, email_body, email_to, email_from, smtp_server, smtp_port, smtp_user, smtp_password)
+            logging.info('Email sent with new promotions')
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()
