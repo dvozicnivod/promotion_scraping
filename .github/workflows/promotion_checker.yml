@@ -21,7 +21,7 @@ jobs:
       - name: Download Previous Session
         uses: actions/download-artifact@v4
         with:
-          name: instagram-session
+          name: instagram_session
           path: .
           if-no-files-found: ignore
 
