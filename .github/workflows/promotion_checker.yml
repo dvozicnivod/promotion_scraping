@@ -1,8 +1,8 @@
 name: Promotion Checker
 on:
   schedule:
-    - cron: '0 15 * * 0,3'  # Every Sunday and Wednesday at 15:00 UTC (3PM)
-  workflow_dispatch:  # Manual trigger
+    - cron: '0 15 * * 0,3'  # Sunday/Wednesday 3PM UTC
+  workflow_dispatch:
 
 jobs:
   run-script:
@@ -17,6 +17,12 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Cache Instagram Session
+        uses: actions/cache@v4
+        with:
+          path: instagram_session
+          key: ig-session-${{ hashFiles('promotion_checker.py') }}
+
       - name: Set Up Python
         uses: actions/setup-python@v4
         with:
@@ -24,27 +30,25 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Cache Data
-        uses: actions/cache@v4
-        with:
-          path: |
-            session_*
-            last_promotions.json
-          key: data-${{ hashFiles('promotion_checker.py') }}
-          restore-keys: data-
+          pip install instaloader==4.9.2  # Specific version for stability
 
       - name: Run Script
         run: python promotion_checker.py
+        env:
+          GITHUB_ACTIONS: 'true'
 
-      - name: Upload Results
-        uses: actions/upload-artifact@v4
+      - name: Save Session
         if: always()
+        run: |
+          if [ -f instagram_session ]; then
+            echo "Persisting session file"
+            tar -czf session.tar.gz instagram_session
+            echo "SESSION_FILE=$(openssl base64 -A -in session.tar.gz)" >> $GITHUB_ENV
+          fi
+
+      - name: Upload Session
+        if: always() && env.SESSION_FILE
+        uses: actions/upload-artifact@v4
         with:
-          name: results
-          path: |
-            last_promotions.json
-            logs.txt
-          retention-days: 3
+          name: instagram-session
+          path: session.tar.gz
