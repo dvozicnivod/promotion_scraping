@@ -9,6 +9,8 @@ import os
 from dotenv import load_dotenv
 import pytz
 from datetime import datetime, timedelta
+import time
+from random import uniform
 import sys
 import json
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -88,11 +90,14 @@ def scrape_instagram_profiles(target_accounts):
     all_promotions = []
     for account in target_accounts:
         try:
+            time.sleep(uniform(15, 30))  # Random delay between accounts
+
             profile = instaloader.Profile.from_username(loader.context, account)
             posts = profile.get_posts()
             
             account_promotions = []
             for post in posts:
+                time.sleep(uniform(3, 8))  # Random post delayx
                 if is_new_post(post):
                     post_url = f"https://www.instagram.com/p/{post.shortcode}/"
                     account_promotions.append({
@@ -179,7 +184,7 @@ def main():
 
          # Load previous promotions
         last_promotions = load_last_promotions()
-        
+
         # Scrape Instagram (without login in CI)
         instagram_promotions = scrape_instagram_profiles(
             insta_target_accounts
